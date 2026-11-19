@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 @RequestMapping("/api/webhook")
 public class Webhook {
 
-    private final String FIREBASE_URL = "https://tour-paymenttest-default-rtdb.firebaseio.com";
+    private final String FIREBASE_URL = "https://travel-52457-default-rtdb.firebaseio.com";
     private final RestTemplate restTemplate = new RestTemplate();
 
     @PostMapping("/sepay")
