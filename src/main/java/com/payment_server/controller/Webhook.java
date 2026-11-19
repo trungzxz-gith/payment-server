@@ -37,7 +37,7 @@ public class Webhook {
 
     private void updateFirebaseStatus(String orderId) {
         try {
-            String url = FIREBASE_URL + "/Transactions/" + orderId + ".json";
+            String url = FIREBASE_URL + "/" + orderId + ".json";
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
