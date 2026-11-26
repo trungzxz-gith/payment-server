@@ -21,32 +21,47 @@ public class Webhook {
         String transferType = String.valueOf(payload.get("transferType"));
         String content = payload.get("content") != null ? payload.get("content").toString() : "";
 
-        if ("in".equalsIgnoreCase(transferType) && !content.isEmpty()) {
+        // Kiểm tra giao dịch tiền vào, có nội dung và có số tiền
+        if ("in".equalsIgnoreCase(transferType) && !content.isEmpty() && payload.get("transferAmount") != null) {
             Matcher matcher = Pattern.compile("SEVQR\\s*(\\d+)").matcher(content.toUpperCase());
 
             if (matcher.find()) {
                 String orderId = "SEVQR" + matcher.group(1);
-                System.out.println("Tìm thấy mã đơn hàng: " + orderId);
-                updateFirebaseStatus(orderId);
+                long transferAmount = (long) Double.parseDouble(String.valueOf(payload.get("transferAmount")));
+
+                System.out.println("Đơn hàng: " + orderId + " | Tiền nhận: " + transferAmount);
+                verifyAndUpdateStatus(orderId, transferAmount);
             }
         }
 
-        // Luôn trả về HTTP 200 OK để SePay không gửi lại webhook
         return ResponseEntity.ok(Map.of("success", true));
     }
 
-    private void updateFirebaseStatus(String orderId) {
+    private void verifyAndUpdateStatus(String orderId, long transferAmount) {
         try {
-            String url = FIREBASE_URL + "/" + orderId + ".json";
+            // 1. Lấy thông tin đơn hàng từ Firebase để xem số tiền cần thanh toán
+            String orderUrl = FIREBASE_URL + "/" + orderId + ".json";
+            Map<String, Object> orderData = restTemplate.getForObject(orderUrl, Map.class);
 
+            if (orderData == null || orderData.get("amount") == null) {
+                System.err.println("Không tìm thấy đơn hàng hoặc thiếu trường amount trên Firebase!");
+                return;
+            }
+
+            // 2. So sánh số tiền thực nhận với giá vé
+            long expectedAmount = Long.parseLong(String.valueOf(orderData.get("amount")));
+            String newStatus = (transferAmount == expectedAmount) ? "\"Đã thanh toán\"" : "\"Sai số tiền\"";
+
+            // 3. Cập nhật vào nhánh con /status.json
+            String statusUrl = FIREBASE_URL + "/" + orderId + "/status.json";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<String> request = new HttpEntity<>("\"Đã thanh toán\"", headers);
+            HttpEntity<String> request = new HttpEntity<>(newStatus, headers);
 
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
-            System.out.println("Cập nhật Firebase thành công: " + response.getBody());
+            ResponseEntity<String> response = restTemplate.exchange(statusUrl, HttpMethod.PUT, request, String.class);
+            System.out.println("Cập nhật trạng thái thành: " + response.getBody());
         } catch (Exception e) {
-            System.err.println("Lỗi khi gọi Firebase: " + e.getMessage());
+            System.err.println("Lỗi đối chiếu thanh toán: " + e.getMessage());
         }
     }
 }
